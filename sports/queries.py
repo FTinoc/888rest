@@ -2,7 +2,8 @@ from sports.db import get_db
 
 new_sport = "INSERT INTO sports (name, slug) VALUES (?, ?)"
 check_db_query = "SELECT column FROM table"
-
+sports = "SELECT DISTINCT name FROM sports"
+sport_delete = "DELETE FROM sports WHERE name = ?"
 
 def slugify(name):
     slug = name.replace(" ", "-")
@@ -29,4 +30,17 @@ def add_sport(name):
     db.execute(new_sport, (name, slug))
     db.commit()
     
- 
+def all_sports():
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute(sports)
+    results = cursor.fetchall()
+    sports_list = []
+    for row in results:
+        sports_list.append(row["name"])
+    return sports_list
+
+def delete_sport(name):
+    db = get_db()
+    db.execute(sport_delete, (name, ))
+    db.commit()
