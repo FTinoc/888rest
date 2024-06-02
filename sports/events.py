@@ -33,8 +33,13 @@ def events(sport_slug):
                 response_data = {"error":"bad data, verify inputs"}
         
         elif request.method == "GET":
-            sport = queries.get_id("slug", "sports", sport_slug)
-            response_data = queries.all_events(sport)
-            status_code = 200
+            data = request.get_json()
+            if not data:
+                sport = queries.get_id("slug", "sports", sport_slug)
+                response_data = queries.all_events(sport)
+                status_code = 200
+            else:
+                response_data = queries.lookup_data(data, "events")
+                status_code = 200
                 
     return make_response(jsonify(response_data), status_code)

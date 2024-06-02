@@ -13,6 +13,9 @@ check_db_query = "SELECT column FROM table"
 
 find_id = "SELECT id FROM table WHERE column = ?"
 
+lookup_columns = "PRAGMA table_info(table_lookup)"
+lookup = "SELECT * FROM table WHERE "
+
 
 def slugify(name, table):
     slug = name.replace(" ", "-")
@@ -119,3 +122,51 @@ def all_events(sport):
             name=row["name"], active=row["active"], scheduled_start=row["scheduled_start"],
             kind=row["kind"])
     return all_events_list
+
+def get_columns(table):
+    db = get_db()
+    query = lookup_columns.replace("table_lookup", table)
+    cursor = db.cursor()
+    cursor.execute(query)
+    results = cursor.fetchall()
+    col_list = []
+    for row in results:
+        col_list.append(row["name"])
+    return col_list
+    
+def lookup_data(lookup_data, table):
+    query = lookup.replace("table", table)
+    values = []
+    for entry in lookup_data.keys():
+        column = lookup_data[entry]["column"]
+        kind = lookup_data[entry]["kind"]
+        query = query + build_where(column, kind)
+        values.append(lookup_data[entry]["value"])
+    
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute(query , values)
+    result = cursor.fetchall()
+    data = []
+    
+    
+    for row in result:
+        data_row = {}
+        
+        for key in row.keys():
+            data_row[key] = row[key]
+            
+        data.append(data_row)
+    
+    return data
+
+def build_where(column, kind):
+    base_where = "column like ?"
+
+    if kind == "END":
+        where = base_where.replace("column", column)
+    
+    else:
+        where = base_where.replace("column", column) + "\n" + kind + " "
+        
+    return where

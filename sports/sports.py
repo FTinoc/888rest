@@ -15,8 +15,15 @@ def sports():
     else:
 
         if request.method == "GET":
-            status_code = 200
-            response_data = queries.all_sports()
+            data = request.get_json()
+            
+            if not data:
+                status_code = 200
+                response_data = queries.all_sports()
+            
+            else:
+                response_data = queries.lookup_data(data, "sports")
+                status_code = 200
 
         elif request.method == "POST":
             content_type = request.headers.get("Content-Type")
