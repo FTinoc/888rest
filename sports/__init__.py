@@ -18,10 +18,11 @@ def create_app(test_config=None):
     except OSError:
         pass
     
-    from . import db, sports, queries
+    from . import db, sports, queries, events
     
     db.init_app(app)
     app.register_blueprint(sports.bp)
+    app.register_blueprint(events.bp)
     
     @app.route("/")
     def home():

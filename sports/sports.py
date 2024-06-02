@@ -1,68 +1,60 @@
-from . import queries
+from . import queries, util
 from flask import Blueprint, request, make_response, jsonify
-from sports.db import get_db
 
 bp = Blueprint("sports", __name__, url_prefix="/sports")
 
 
 @bp.route("/", methods=("GET", "POST", "PUT", "PATCH", "DELETE"))
 def sports():
-    db = get_db
-    
-    if request.method == "GET":
-        status_code = 200
-        data = queries.all_sports()
-    
-    elif request.method == "POST":
-        status_code = 200
-        # Verifies if post data is json, if has valid name, and if sport
-        content_type = request.headers.get("Content-Type")
+    content_type = request.headers.get("Content-Type")
 
-        if content_type != "application/json":
-            status_code = 400
-            data = {"error":"not json"}
+    if content_type != "application/json":
+        status_code = 400
+        response_data = {"error": "not json"}
 
-        data = request.get_json()
+    else:
 
-        if "name" not in (data.keys()) or data["name"] == "":
-            status_code = 400
-            data = {"error":"name is required"}
-        
-        exists = queries.check_db("name", "sports", data["name"])
-        
-        if status_code == 200 and not exists:
-            name = data["name"]
-            queries.add_sport(name)
-            data = {"status":"success"}
+        if request.method == "GET":
+            status_code = 200
+            response_data = queries.all_sports()
 
-        else:
-            status_code = 409
-            data = {"error":"name in use"}
+        elif request.method == "POST":
+            content_type = request.headers.get("Content-Type")
 
-    elif request.method == "DELETE":
-        status_code = 200
-        # Verifies if post data is json, if has valid name, and if sport
-        content_type = request.headers.get("Content-Type")
+            if content_type != "application/json":
+                status_code = 400
+                response_data = {"error":"not json"}
 
-        if content_type != "application/json":
-            status_code = 400
-            data = {"error":"not json"}
+            data = request.get_json()
+            valid = util.validate_dict(data, ["name"])
 
-        data = request.get_json()
+            if valid:
+                status_code = 200
+                response_data = queries.add_sport(data["name"])
 
-        if "name" not in (data.keys()) or data["name"] == "":
-            status_code = 400
-            data = {"error":"name is required"}
-        
-        exists = queries.check_db("name", "sports", data["name"])
-        
-        if status_code == 200 and exists:
-            name = data["name"]
-            queries.delete_sport(name)
-            data = {"status":"success"}
+            else:
+                response_data = {"error":"bad data"}
+                status_code = 400
 
-        else:
-            status_code = 409
-            data = {"error":"name not found"}
-    
-    return(make_response(jsonify(data), status_code))
+        elif request.method == "DELETE":
+            data = request.get_json()
+            valid = util.validate_dict(data, ["name"])
+            
+            if valid:
+                exists = queries.check_db("name", "sports", data["name"])
+                
+                if exists:
+                    name = data["name"]
+                    queries.delete_sport(name)
+                    status_code = 200
+                    response_data = {"status":"success"}
+                
+                else:
+                    status_code = 404
+                    response_data = {"error":"name not found"}
+                    
+            else:
+                status_code = 400
+                response_data = {"error": "bad data"}
+                
+    return (make_response(jsonify(response_data), status_code))
