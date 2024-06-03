@@ -6,8 +6,9 @@ new_event = ("INSERT INTO events (name, slug, active, kind, sport_id, status, sc
              "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
              )
 
-events = "SELECT * FROM events WHERE sport_id = ?"
 sports = "SELECT * FROM sports"
+events = "SELECT * FROM events WHERE sport_id = ?"
+selections = "SELECT * FROM selctions WHERE event_id = ?"
 
 check_db_query = "SELECT column FROM table"
 find_id = "SELECT id FROM table WHERE column = ?"
@@ -26,8 +27,11 @@ def all(kind, param = ""):
     if kind == "sports":        
         result = cursor.execute(sports)
         
-    elif kind == "events" :
+    elif kind == "events":
         result = cursor.execute(events, (param, ))
+    
+    elif kind == "selections":
+        result = cursor.execute(selections, (param, ))
     
     data = []
     for row in result:
@@ -57,7 +61,7 @@ def add_event(name, kind, sport, scheduled_start, status, actual_start="NULL", a
     else:
         db = get_db()
         if type(sport) is not int:
-            sport = get_id("name", "sports", sport)
+            sport = get_id("slug", "sports", sport)
         
         slug = slugify(name, "events")
         db.execute(new_event, (name, slug, active, kind, sport,
