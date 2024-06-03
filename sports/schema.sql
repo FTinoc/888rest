@@ -19,4 +19,3 @@ CREATE TABLE events (
     scheduled_start TEXT NOT NULL,
     actual_start TEXT,
     FOREIGN KEY (sport_id) REFERENCES sports (id)
-);

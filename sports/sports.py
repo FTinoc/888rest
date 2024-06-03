@@ -4,7 +4,7 @@ from flask import Blueprint, request, make_response, jsonify
 bp = Blueprint("sports", __name__, url_prefix="/sports")
 
 
-@bp.route("/", methods=("GET", "POST", "PUT", "PATCH", "DELETE"))
+@bp.route("/", methods=("GET", "POST", "PATCH"))
 def sports():
     content_type = request.headers.get("Content-Type")
 
@@ -19,11 +19,12 @@ def sports():
             
             if not data:
                 status_code = 200
-                response_data = queries.all_sports()
+                response_data = queries.all("sports")
             
             else:
-                response_data = queries.lookup_data(data, "sports")
-                status_code = 200
+                result = queries.read(data, "spt")
+                status_code = result["status_code"]
+                response_data = result["results"]
 
         elif request.method == "POST":
             content_type = request.headers.get("Content-Type")
@@ -33,35 +34,71 @@ def sports():
                 response_data = {"error":"not json"}
 
             data = request.get_json()
-            valid = util.validate_dict(data, ["name"])
-
-            if valid:
-                status_code = 200
-                response_data = queries.add_sport(data["name"])
-
+            if "name" in data.keys():
+                if data["name"]:
+                    status_code = 200
+                    response_data = queries.add_sport(data["name"])
+    
+                else:
+                    response_data = {"error":"bad data"}
+                    status_code = 400
+                    
             else:
                 response_data = {"error":"bad data"}
                 status_code = 400
-
-        elif request.method == "DELETE":
+        elif request.method == "PATCH":
             data = request.get_json()
-            valid = util.validate_dict(data, ["name"])
+            valid = util.validate_dict(data, ["table", "id", "columns", "values"])
             
             if valid:
-                exists = queries.check_db("name", "sports", data["name"])
-                
-                if exists:
-                    name = data["name"]
-                    queries.delete_sport(name)
-                    status_code = 200
-                    response_data = {"status":"success"}
-                
-                else:
-                    status_code = 404
-                    response_data = {"error":"name not found"}
-                    
+                result = queries.update(data["table"], data["id"], data["columns"], data["values"])
+                response_data = result["data"]
+                status_code = result["status_code"]
             else:
+                response_data = {"error":str(data.keys())}
                 status_code = 400
-                response_data = {"error": "bad data"}
                 
     return (make_response(jsonify(response_data), status_code))
+
+@bp.route("/<string:sport_slug>", methods = ("GET", "POST", "PATCH"))
+def events(sport_slug):
+    content_type = request.headers.get("Content-Type")
+    
+    if not queries.check_db("slug", "sports", sport_slug):
+        response_data = {"error":"sport not found"}
+        status_code = 404
+    
+    elif content_type != "application/json":
+        status_code = 400
+        response_data = {"error":"not json"}
+    
+    else:
+        if request.method == "POST":
+            data = request.get_json()
+            valid = util.validate_dict(data, ["name", "kind", "sport", "scheduled_start", "status"])
+            
+            if valid:
+                name = data["name"]
+                kind = data["kind"]
+                sport = data["sport"]
+                scheduled_start = data["scheduled_start"]
+                status = data["status"]
+                status_code = 200
+                response_data = queries.add_event(name, kind, sport, scheduled_start, status)
+            
+            else:
+                status_code = 400
+                response_data = {"error":"bad data, verify inputs"}
+        
+        elif request.method == "GET":
+            data = request.get_json()
+            if not data:
+                sport = queries.get_id("slug", "sports", sport_slug)
+                response_data = queries.all("events", sport)
+                status_code = 200
+            else:
+                result = queries.read(data, "evt")
+                status_code = result["status_code"]
+                response_data = result["results"]
+                
+    return make_response(jsonify(response_data), status_code)
