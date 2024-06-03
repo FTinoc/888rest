@@ -169,7 +169,7 @@ def update(table, row, columns, values):
         db.execute(query, values_data)
         db.commit()
         response["status_code"] = 200
-        response["data"] = values_data
+        response["data"] = {"status":"success"}
     
     return response
 

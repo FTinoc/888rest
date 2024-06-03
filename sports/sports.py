@@ -48,14 +48,14 @@ def sports():
                 status_code = 400
         elif request.method == "PATCH":
             data = request.get_json()
-            valid = util.validate_dict(data, ["table", "id", "columns", "values"])
+            valid = util.validate_dict(data, [ "id", "columns", "values"])
             
             if valid:
-                result = queries.update(data["table"], data["id"], data["columns"], data["values"])
+                result = queries.update("sports", data["id"], data["columns"], data["values"])
                 response_data = result["data"]
                 status_code = result["status_code"]
             else:
-                response_data = {"error":str(data.keys())}
+                response_data = {"error":"bad data"}
                 status_code = 400
                 
     return (make_response(jsonify(response_data), status_code))
@@ -100,5 +100,17 @@ def events(sport_slug):
                 result = queries.read(data, "evt")
                 status_code = result["status_code"]
                 response_data = result["results"]
+        
+        elif request.method == "PATCH":
+            data = request.get_json()
+            valid = util.validate_dict(data, ["id", "columns", "values"])
+            
+            if valid:
+                result = queries.update("events", data["id"], data["columns"], data["values"])
+                response_data = result["data"]
+                status_code = result["status_code"]
+            else:
+                response_data = {"error":"bad data"}
+                status_code = 400
                 
     return make_response(jsonify(response_data), status_code)
