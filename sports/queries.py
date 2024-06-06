@@ -8,14 +8,23 @@ new_event = ("INSERT INTO events (name, slug, active, kind, sport_id, status, sc
 
 sports = "SELECT * FROM sports"
 events = "SELECT * FROM events WHERE sport_id = ?"
-selections = "SELECT * FROM selctions WHERE event_id = ?"
+selections = "SELECT * FROM selections WHERE event_id = ?"
 
 check_db_query = "SELECT column FROM table"
 find_id = "SELECT id FROM table WHERE column = ?"
-lookup = "SELECT table.* FROM sports spt LEFT JOIN events evt ON evt.sport_id = spt.id WHERE "
+lookup =    ("SELECT table.*, "
+             "table_metrics.* "
+             "FROM sports spt " 
+            "LEFT JOIN events evt ON evt.sport_id = spt.id "
+            "LEFT JOIN sports_metrics spt_metrics ON spt_metrics.id = spt.id "
+            "WHERE "
+            )
+
 table_lookup = "PRAGMA table_info(table_lookup)"
 
 patch = "UPDATE table SET columns_values WHERE id = ?"
+
+get_ids = "SELECT id FROM table"
 
 operators = {"equ":"=", "not":"<>",
              "gtr":">", "gqu":">=",
@@ -32,7 +41,7 @@ def all(kind, param = ""):
     
     elif kind == "selections":
         result = cursor.execute(selections, (param, ))
-    
+        
     data = []
     for row in result:
         data_row = {}
@@ -53,35 +62,29 @@ def add_sport(name):
     
     return response
 
-def add_event(name, kind, sport, scheduled_start, status, actual_start="NULL", active=False):
+def add_event(name, kind, sport, scheduled_start, status, active):
+    db = get_db()
+    if type(sport) is not int:
+        sport = get_id("slug", "sports", sport)
     
-    if active and actual_start == "NULL":
-        response = {"error": "active event needs start"}
-    
-    else:
-        db = get_db()
-        if type(sport) is not int:
-            sport = get_id("slug", "sports", sport)
-        
-        slug = slugify(name, "events")
-        db.execute(new_event, (name, slug, active, kind, sport,
-                   status, scheduled_start, actual_start))
-        db.commit()
-        response = {"status":"success"}
+    slug = slugify(name, "events")
+    db.execute(new_event, (name, slug, active, kind, sport,
+               status, scheduled_start))
+    db.commit()
+    response = {"status":"success"}
         
     return response
     
 def read(lookup_data, select_table):
     query = lookup
-    valid_columns = {}
-    valid_columns["spt"] = get_columns("sports")
-    valid_columns["evt"] = get_columns("events")
     valid_tables = {"sports":"spt", "events":"evt", "selections":"slt"}
+    valid_columns = {"spt":get_columns("sports"),
+                     "evt":get_columns("events"),
+                     "slt":get_columns("selections")
+                     }
     values = []
-    
     for entry in lookup_data.keys():
         valid = util.validate_dict(lookup_data[entry], ["table", "column", "operator", "value", "next"])
-        
         if not valid:
             return {"status_code": 400,
                     "results": {"error": "bad query",
@@ -89,7 +92,6 @@ def read(lookup_data, select_table):
                     }
 
         table = lookup_data[entry]["table"]
-        
         if table not in valid_tables.keys():
             return {"status_code": 400,
                     "results": {"error": "bad table",
@@ -100,8 +102,6 @@ def read(lookup_data, select_table):
             table = valid_tables[table]
             
         column = lookup_data[entry]["column"]
-        
-        
         if column not in valid_columns[table].keys():
             return {"status_code": 400,
                     "results": {"error": "bad column",
@@ -147,15 +147,29 @@ def build_where(table, column, kind, operator):
 
 def update(table, row, columns, values):
     response = {}
+    valid_columns = {"sports":get_columns("sports"),
+                     "events":get_columns("events"),
+                     "selections":get_columns("selections")
+                     }
     if len(columns) != len(values):
         response["status_code"] = 400
         response["data"] = "bad request"
-    
+        
     else:
         cols_vals = "column = ?"
         columns_values = ""
         values_data = []
+        
         for i in range(len(columns)):
+            if columns[i] not in valid_columns[table]:
+                response["status_code"] = 404
+                response["data"] = {"data":"column not found"}
+                break
+            
+            elif row not in get_all_ids(table):
+                response["status_code"] = 404
+                response["data"] = {"data":"id not found"}
+                
             if columns[i] == columns[-1]:
                 columns_values += cols_vals 
                 
@@ -164,16 +178,17 @@ def update(table, row, columns, values):
                 
             columns_values = columns_values.replace("column", columns[i])
             values_data.append(values[i])
-            
-        query = patch
-        query = query.replace("columns_values", columns_values)
-        query = query.replace("table", table)
-        values_data.append(row)
-        db = get_db()
-        db.execute(query, values_data)
-        db.commit()
-        response["status_code"] = 200
-        response["data"] = {"status":"success"}
+        
+        if not response["data"]:
+            query = patch
+            query = query.replace("columns_values", columns_values)
+            query = query.replace("table", table)
+            values_data.append(row)
+            db = get_db()
+            db.execute(query, values_data)
+            db.commit()
+            response["status_code"] = 200
+            response["data"] = {"status":"success"}
     
     return response
 
@@ -226,3 +241,25 @@ def get_columns(table):
         col_list[row["name"]] = row["name"]
         
     return col_list
+
+def get_all_ids(table):
+    db = get_db()
+    query = get_ids.replace("table", table)
+    cursor = db.cursor()
+    cursor.execute(query)
+    results = cursor.fetchall()
+    id_list = []
+    for row in results:
+        id_list.append(row["id"])
+        
+    return id_list
+
+def valid_data(field, data):
+    valid_dict = {"kind":["preplay", "inplay"],
+                  "status":["pending", "started", "ended", "cancelled"],
+                  "outcome":["unsettled", "void", "lose", "win"]
+                  }
+    if data in valid_dict[field]:
+        return True
+    else:
+        return False
