@@ -9,14 +9,14 @@ DROP VIEW IF EXISTS [events_metrics];
 
 CREATE TABLE sports (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
+    name TEXT UNIQUE NOT NULL,
     slug TEXT UNIQUE NOT NULL,
     active BOOL DEFAULT 0 NOT NULL
 );
 
 CREATE TABLE events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
+    name TEXT UNIQUE NOT NULL,
     slug TEXT UNIQUE NOT NULL,
     active BOOL DEFAULT 0 NOT NULL,
     kind TEXT NOT NULL,
@@ -29,7 +29,7 @@ CREATE TABLE events (
 
 CREATE TABLE selections (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
+    name TEXT UNIQUE NOT NULL,
     price REAL NOT NULL,
     active BOOL DEFAULT 0 NOT NULL,
     outcome TEXT DEFAULT 'Unsettled' NOT NULL,
@@ -41,55 +41,31 @@ CREATE TABLE selections (
 );
 
 CREATE VIEW [sports_metrics] AS 
+
 SELECT  spt.id,    
-        COUNT(evt.id) "quantity_events", 
-        COUNT(slt.id) "quantity_selections",
-        SUM(CASE evt.active
-                WHEN 1 THEN 1
-                ELSE 0
-            END) "active_events",
-        
-        SUM(CASE slt.active
-                WHEN 1 THEN 1
-                ELSE 0
-            END) "active_selections",
-        
-        SUM(CASE evt.status
-                WHEN "pending" THEN 1
-                ELSE 0
-            END) "pending_events",
-        
-        SUM(CASE evt.status
-                WHEN "started" THEN 1
-                ELSE 0
-            END) "ongoing_events",
-            
-        SUM(CASE evt.status
-                WHEN "cancelled" THEN 1
-                ELSE 0
-            END) "cancelled_events",
-        
-        SUM(CASE slt.outcome
-                WHEN "win" THEN 1
-                ELSE 0
-            END) "win_selections",
-            
-        SUM(CASE slt.outcome
-                WHEN "lose" THEN 1
-                ELSE 0
-            END) "lose_selections",
-        
-        SUM(CASE slt.outcome
-                WHEN "void" THEN 1
-                ELSE 0
-            END) "void_selections",
-            
-        SUM(CASE slt.outcome
-                WHEN "unsettled" THEN 1
-                ELSE 0
-            END) "unsettled_selections"
-        
-FROM sports spt
-LEFT JOIN events evt ON evt.sport_id = spt.id
-LEFT JOIN selections slt ON slt.sport_id = spt.id
-GROUP BY spt.id
+        (SELECT COUNT(id) FROM events WHERE id = spt.id) "quantity_events", 
+        (SELECT COUNT(id) FROM events WHERE id = spt.id AND active = 1) "active_events",
+        (SELECT COUNT(id) FROM events WHERE id = spt.id AND kind = 'pending') "pending_events",
+        (SELECT COUNT(id) FROM events WHERE id = spt.id AND kind = 'started') "started_events",
+        (SELECT COUNT(id) FROM events WHERE id = spt.id AND kind = 'cancelled') "cancelled_events",
+        (SELECT COUNT(id) FROM events WHERE id = spt.id AND kind = 'ended') "finished_events",    
+        (SELECT COUNT(id) FROM selections WHERE id = spt.id) "quantity_selections",
+        (SELECT COUNT(id) FROM selections WHERE id = spt.id AND active = 1) "active_selections", 
+        (SELECT COUNT(id) FROM selections WHERE id = spt.id AND outcome = 'void') "void_selections",
+        (SELECT COUNT(id) FROM selections WHERE id = spt.id AND outcome = 'win') "win_selections",
+        (SELECT COUNT(id) FROM selections WHERE id = spt.id AND outcome = 'lose') "lose_selections",
+        (SELECT COUNT(id) FROM selections WHERE id = spt.id AND outcome = 'unsettled') "unsettled_selections"  
+
+FROM sports spt;
+
+CREATE VIEW [events_metrics] AS 
+
+SELECT  evt.id,
+        (SELECT COUNT(id) FROM selections WHERE id = evt.id) "quantity_selections",
+        (SELECT COUNT(id) FROM selections WHERE id = evt.id AND active = 1) "active_selections", 
+        (SELECT COUNT(id) FROM selections WHERE id = evt.id AND outcome = 'void') "void_selections",
+        (SELECT COUNT(id) FROM selections WHERE id = evt.id AND outcome = 'win') "win_selections",
+        (SELECT COUNT(id) FROM selections WHERE id = evt.id AND outcome = 'lose') "lose_selections",
+        (SELECT COUNT(id) FROM selections WHERE id = evt.id AND outcome = 'unsettled') "unsettled_selections" 
+
+FROM events evt;
