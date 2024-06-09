@@ -1,9 +1,8 @@
-#Main blueprint routed at /, includes GET POST PATCH for each endpoint
 from . import queries, util
 from flask import Blueprint, request, make_response, jsonify
 from datetime import datetime
 
-bp = Blueprint("sports", __name__, url_prefix="/sports")
+bp = Blueprint("sports", __name__, url_prefix="/")
 
 
 @bp.route("/", methods=("GET", "POST", "PATCH"))
@@ -83,6 +82,7 @@ def events(sport_slug):
                 response = queries.create(data, "events")
                 status_code = response["status_code"]
                 response_data = response["data"]
+                
             else:
                 status_code = 400
                 response_data = {"error":"bad data, verify inputs"}
@@ -93,7 +93,6 @@ def events(sport_slug):
                 sport = queries.get_id("slug", "sports", sport_slug)
                 response_data = queries.all("events", sport)
                 status_code = 200
-                
             else:
                 result = queries.read(data, "evt")
                 status_code = result["status_code"]
@@ -107,7 +106,6 @@ def events(sport_slug):
                                         data["values"], slug_list={"sports":sport_slug})
                 response_data = result["data"]
                 status_code = result["status_code"]
-                
             else:
                 response_data = {"error":"bad data"}
                 status_code = 400
@@ -122,15 +120,12 @@ def selections(sport_slug, event_slug):
     if not queries.check_db("slug", "sports", sport_slug):
         response_data = {"error":"sport not found"}
         status_code = 404
-        
     elif not queries.check_db("slug", "events", event_slug):
         response_data = {"error":"event not found"}
         status_code = 404
-
     elif content_type != "application/json":
         status_code = 400
-        response_data = {"error":"not json"}
-        
+        response_data = {"error":"not json"}   
     else:
         if request.method == "GET":
             data = request.get_json()
@@ -138,7 +133,6 @@ def selections(sport_slug, event_slug):
                 selection = queries.get_id("slug", "events", event_slug)
                 response_data = queries.all("selections", selection)
                 status_code = 200
-                
             else:
                 response = queries.read(data, "slt")
                 status_code = response["status_code"]
@@ -154,6 +148,18 @@ def selections(sport_slug, event_slug):
                 response = queries.create(data, "selections")
                 status_code = response["status_code"]
                 response_data = response["data"]
+            else:
+                response_data = {"error":"bad data"}
+                status_code = 400
+                
+        elif request.method == "PATCH":
+            data = request.get_json()
+            valid = util.validate_dict(data, ["id", "columns", "values"])
+            if valid:
+                result = queries.update("selections", data["id"], data["columns"], 
+                                        data["values"], slug_list={"sports":sport_slug, "events":event_slug})
+                response_data = result["data"]
+                status_code = result["status_code"]
             else:
                 response_data = {"error":"bad data"}
                 status_code = 400

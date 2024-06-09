@@ -20,7 +20,9 @@ lookup =    ("SELECT table.*, "
              "table_metrics.* "
              "FROM sports spt " 
             "LEFT JOIN events evt ON evt.sport_id = spt.id "
+            "LEFT JOIN selections slt ON slt.event_id = evt.id "
             "LEFT JOIN sports_metrics spt_metrics ON spt_metrics.id = spt.id "
+            "LEFT JOIN events_metrics evt_metrics ON evt_metrics.id = evt.id "
             "WHERE "
             )
 
@@ -97,7 +99,7 @@ def create(data, table):
                     cascade_active(True, table, {"sports_id":sport, "events_id":event})
         except Exception as e:
             response["status_code"] = 500
-            response["data"] = "DB error: " + str(Exception(e))
+            response["data"] = "Error: " + str(Exception(e))
     else:
         response["status_code"] = 400
         response["data"] = {"error": "bad value"}
@@ -134,14 +136,23 @@ def read(lookup_data, select_table):
                 
                 else:
                     valid = False
+                    status_code = 404
+                    results = "bad column"
                     break
             else:
                 valid = False
+                status_code = 404
+                results = "bad table"
                 break
         else:
+            valid = False
+            status_code = 404
+            results = "bad inputs"
             break
         
     if valid:
+        if select_table == "slt":
+            query = query.replace(", table_metrics.* ", "")
         query = query.replace("table", select_table)
         db = get_db()
         cursor = db.cursor()
@@ -154,9 +165,6 @@ def read(lookup_data, select_table):
             for key in row.keys():
                 data_row[key] = row[key]
             results.append(data_row)
-    else:
-        status_code = 400
-        results = "bad request"
     
     return {"status_code": status_code,
             "data": results}
@@ -177,11 +185,17 @@ def update(table, row, columns, values, cascade = True, slug_list = []):
         for i in range(len(columns)):
             if columns[i] not in valid_columns[table]:
                 response["status_code"] = 404
-                response["data"] = {"data":"column not found"}
+                response["data"] = {"error":"column not found " + columns[i]}
                 break
             elif row not in get_all_ids(table):
                 response["status_code"] = 404
-                response["data"] = {"data":"id not found"}
+                response["data"] = {"error":"id not found " + str(row)}
+                break
+            elif columns[i] in ["kind", "status", "outcome", "actual_start", "scheduled_start"]:
+                if not valid_data(columns[i], values[i]):
+                    response["status_code"] = 400
+                    response["data"] = {"error":"invalid value " + values[i] + " for column " + columns[i]}
+                    break
             if columns[i] == columns[-1]:
                 columns_values += cols_vals 
             else:
@@ -207,7 +221,7 @@ def update(table, row, columns, values, cascade = True, slug_list = []):
                 response["data"] = {"status":"success"}
             except Exception as e:
                 response["status_code"] = 500
-                response["data"] = "DB error: " + str(Exception(e)) + " " + query
+                response["data"] = "Error: " + str(Exception(e))
     
     return response
 
@@ -290,24 +304,27 @@ def get_all_ids(table):
     return id_list
 
 def valid_data(field, data):
+    check = False
     valid_dict = {"kind":["preplay", "inplay"],
                   "status":["pending", "started", "ended", "cancelled"],
                   "outcome":["unsettled", "void", "lose", "win"]
                   }
-    if data in valid_dict[field]:
-        return True
-    elif field in ["actual_start", "scheduled_start"]:
+    if field in ["actual_start", "scheduled_start"]:
         try:
             datetime.fromisoformat(data)
+            check = True
         except ValueError:
-            return False
-    else:
-        return False
+            check = False
+        
+    elif data in valid_dict[field]:
+        check = True
+
+    return check
 
 def cascade_active(active, table, id_list):
     if active:
         if table == "selections":
-            update("events", id_list["events_id"], ["active"], [True], False)
+            update("events", id_list["events_id"], ["active", "actual_start"], [True, datetime.now().replace(microsecond=0).strftime("%Y-%m-%d %H:%M:%S")], False)
             cascade_active(active, "events", id_list)
         if table == "events":
             update("sports", id_list["sports_id"], ["active"], [True], False)

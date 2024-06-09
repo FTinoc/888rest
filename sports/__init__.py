@@ -20,9 +20,10 @@ def create_app(test_config=None):
     except OSError:
         pass
     
-    from . import db, sports
+    from . import db, sports, search
     
     db.init_app(app)
     app.register_blueprint(sports.bp)
+    app.register_blueprint(search.bp)
 
     return app    
