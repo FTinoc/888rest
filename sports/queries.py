@@ -122,15 +122,13 @@ def read(lookup_data, select_table):
             if table in valid_tables.keys():
                 table = valid_tables[table]
                 column = lookup_data[entry]["column"]
+                kind = lookup_data[entry]["next"]
+                operator = lookup_data[entry]["operator"]
                 if column in valid_columns[table].keys():
-                    kind = lookup_data[entry]["next"]
-                    operator = lookup_data[entry]["operator"]
                     query += build_where(table, column, kind, operator)
                     values.append(lookup_data[entry]["value"])
                 
                 elif column in valid_metrics["spt"].keys():
-                    kind = lookup_data[entry]["next"]
-                    operator = lookup_data[entry]["operator"]
                     query += build_where(table, column, kind, operator, True)
                     values.append(lookup_data[entry]["value"])
                 
@@ -221,22 +219,27 @@ def update(table, row, columns, values, cascade = True, slug_list = []):
                 response["data"] = {"status":"success"}
             except Exception as e:
                 response["status_code"] = 500
-                response["data"] = "Error: " + str(Exception(e))
+                response["data"] = "Error: " + str(Exception(e)) + query
     
     return response
 
 def build_where(table, column, kind, operator, metrics = False):
     base_where = "table.column operator ?"
+    valid_kind = ["AND", "OR"]
+    
     if column == "scheduled_start" or column == "actual_start":
         base_where = "DATETIME(table.column) operator DATETIME(?)"
+    
     where = base_where.replace("column", column)
     if metrics:
         where = where.replace("table", table + "_metrics")
     else:
         where = where.replace("table", table)
+        
     where = where.replace("operator", operators[operator])
-    if kind != "END":
+    if kind != "END" and kind in valid_kind:
         where += "\n" + kind + " "
+        
     return where
 
 def slugify(name, table):
@@ -339,7 +342,7 @@ def cascade_active(active, table, id_list):
                                     "value":1,
                                     "next":"END"
                                     }
-                                },"events")
+                                },"evt")
             if not other_active["data"]:
                 update("events", id_list["events_id"], ["active"], [False], False)
                 cascade_active(active, "events", id_list)
@@ -351,6 +354,6 @@ def cascade_active(active, table, id_list):
                                     "value":1,
                                     "next":"END"
                                     }
-                                },"sports")
+                                },"spt")
             if not other_active["data"]:
                 update("sports", id_list["sports_id"], ["active"], [False], False)
