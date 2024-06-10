@@ -227,6 +227,8 @@ def update(table, row, columns, values, cascade = True, slug_list = []):
 
 def build_where(table, column, kind, operator, metrics = False):
     base_where = "table.column operator ?"
+    if column == "scheduled_start" or column == "actual_start":
+        base_where = "DATETIME(table.column) operator DATETIME(?)"
     where = base_where.replace("column", column)
     if metrics:
         where = where.replace("table", table + "_metrics")
